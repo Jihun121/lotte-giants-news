@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ExternalLink, Clock } from 'lucide-react';
+import { ExternalLink, Clock, Search, X } from 'lucide-react';
 
 export interface Article {
   id: number;
@@ -32,48 +32,106 @@ function formatRelativeTime(dateString: string): string {
   return diffInDays + '일 전';
 }
 
-const PRESET_TAGS = ['전체', '김태형 감독', '투수진', '타선', '사직구장'];
+// 롯데 팬들이 자주 검색하는 추천 선수 및 키워드 칩
+const QUICK_KEYWORDS = ['전체', '윤동희', '전준우', '황성빈', '박세웅', '김태형', '선발', '홈런'];
 
 export default function ArticleFeed({ initialArticles }: ArticleFeedProps) {
-  const [selectedTag, setSelectedTag] = useState<string>('전체');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeChip, setActiveChip] = useState('전체');
 
-  const filteredArticles = useMemo(() => {
-    if (selectedTag === '전체') return initialArticles;
-    return initialArticles.filter((article) => article.tags && article.tags.includes(selectedTag));
-  }, [selectedTag, initialArticles]);
-
-  const getButtonClass = (tag: string) => {
-    const base = "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ";
-    if (selectedTag === tag) {
-      return base + "bg-red-600 text-white shadow-sm ring-2 ring-red-600/20";
+  // 추천 키워드 칩 클릭 핸들러
+  const handleChipClick = (keyword: string) => {
+    setActiveChip(keyword);
+    if (keyword === '전체') {
+      setSearchTerm('');
+    } else {
+      setSearchTerm(keyword);
     }
-    return base + "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700";
   };
+
+  // 검색어 입력 시 동작 핸들러
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    setActiveChip(val === '' ? '전체' : '');
+  };
+
+  // 실시간 검색어 필터링 (제목 + 본문 요약 동시 검사)
+  const filteredArticles = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return initialArticles;
+
+    return initialArticles.filter((article) => {
+      const matchTitle = article.title.toLowerCase().includes(query);
+      const matchDesc = article.description ? article.description.toLowerCase().includes(query) : false;
+      const matchPublisher = article.publisher.toLowerCase().includes(query);
+      return matchTitle || matchDesc || matchPublisher;
+    });
+  }, [searchTerm, initialArticles]);
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2 overflow-x-auto py-1">
-          {PRESET_TAGS.map((tag) => (
+      {/* 1. 상단 검색창 & 추천 키워드 칩 바 */}
+      <div className="space-y-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+        
+        {/* 실시간 단어 검색창 */}
+        <div className="relative w-full max-w-lg">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <Search size={18} />
+          </div>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            placeholder="선수명, 감독, 이슈 검색 (예: 윤동희, 부상, 홈런)"
+            className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent text-slate-900 dark:text-white placeholder-slate-400 shadow-sm transition-all"
+          />
+          {searchTerm && (
             <button
-              key={tag}
               type="button"
-              onClick={() => setSelectedTag(tag)}
-              className={getButtonClass(tag)}
+              onClick={() => { setSearchTerm(''); setActiveChip('전체'); }}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
-              {tag}
+              <X size={16} />
             </button>
-          ))}
+          )}
         </div>
 
-        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-          총 <strong className="text-slate-900 dark:text-slate-100">{filteredArticles.length}</strong>개의 기사
-        </span>
+        {/* 원클릭 추천 키워드 칩 */}
+        <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 no-scrollbar">
+            {QUICK_KEYWORDS.map((keyword) => (
+              <button
+                key={keyword}
+                type="button"
+                onClick={() => handleChipClick(keyword)}
+                className={
+                  "px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all " +
+                  (activeChip === keyword
+                    ? "bg-red-600 text-white shadow-sm"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700")
+                }
+              >
+                {keyword === '전체' ? '전체보기' : '#' + keyword}
+              </button>
+            ))}
+          </div>
+
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+            검색 결과 <strong className="text-slate-900 dark:text-slate-100 font-bold">{filteredArticles.length}</strong>건
+          </span>
+        </div>
       </div>
 
+      {/* 2. 기사 카드 반응형 그리드 */}
       {filteredArticles.length === 0 ? (
-        <div className="py-24 text-center text-slate-400 text-sm">
-          해당 분류의 최신 기사가 없습니다.
+        <div className="py-24 text-center text-slate-400">
+          <p className="text-base font-semibold text-slate-600 dark:text-slate-300 mb-1">
+            "{searchTerm}" 검색 결과가 없습니다.
+          </p>
+          <p className="text-xs">
+            다른 선수명이나 키워드로 검색해 보세요.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -108,20 +166,9 @@ export default function ArticleFeed({ initialArticles }: ArticleFeedProps) {
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800/80 mt-auto">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {article.tags && article.tags.length > 0 ? (
-                    article.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium"
-                      >
-                        {'#' + t}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-slate-400">#자이언츠</span>
-                  )}
-                </div>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  원문 기사 읽기
+                </span>
                 <ExternalLink
                   size={14}
                   className="text-slate-400 group-hover:text-red-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 ml-2"

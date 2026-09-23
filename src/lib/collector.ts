@@ -98,6 +98,23 @@ export async function syncLotteGiantsNews(): Promise<{ total: number; inserted: 
     throw new Error(`[Supabase Upsert Error] ${error.message}`);
   }
 
+  // ---------------------------------------------------------------------------
+  // [추가] 데이터 보존 정책 (30일 지난 오래된 기사 자동 삭제)
+  // ---------------------------------------------------------------------------
+  try {
+    const retentionDays = 30; // 보존할 기간 (30일)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+    await supabase
+      .from('articles')
+      .delete()
+      .lt('published_at', cutoffDate.toISOString());
+  } catch (cleanupError) {
+    // 삭제 실패가 전체 수집 프로세스를 중단시키지 않도록 예외 격리
+    console.error('[Cleanup Warning] 오래된 기사 정리 실패:', cleanupError);
+  }
+
   return {
     total: articlesToUpsert.length,
     inserted: data ? data.length : 0,

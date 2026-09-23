@@ -1,0 +1,17 @@
+name: Auto Sync Lotte News
+
+on:
+  schedule:
+    # 30분마다 실행 (UTC 기준)
+    - cron: '*/30 * * * *'
+  # GitHub 웹사이트에서 수동으로 즉시 실행 버튼 지원
+  workflow_dispatch:
+
+jobs:
+  trigger-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel Sync API
+        run: |
+          curl -X GET "${{ secrets.VERCEL_PROJECT_URL }}/api/sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
